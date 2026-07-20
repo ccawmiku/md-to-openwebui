@@ -1,3 +1,4 @@
+import json
 from uuid import UUID
 
 from md_to_openwebui.converter import to_openwebui_chat
@@ -36,14 +37,8 @@ def test_builds_openwebui_standard_message_tree() -> None:
     assert second["model"] == "model-id"
     assert second["done"] is True
     assert second["content"] == "two"
-    assert second["output"][0] == {
-        "type": "reasoning",
-        "id": "00000000-0000-0000-0000-000000000002-reasoning",
-        "summary": [{"type": "summary_text", "text": "reasoning"}],
-        "status": "completed",
-    }
-    assert second["output"][1]["type"] == "message"
-    assert second["output"][1]["content"] == [{"type": "output_text", "text": "two"}]
+    assert "output" not in second
+    assert "reasoning" not in json.dumps(result)
     assert third["childrenIds"] == []
     assert history["currentId"] == third["id"]
 

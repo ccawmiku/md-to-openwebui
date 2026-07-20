@@ -62,7 +62,7 @@ class ConvertResponse(BaseModel):
 
 app = FastAPI(
     title="Markdown to Open WebUI",
-    version="1.1.0",
+    version="1.1.1",
     docs_url="/api/docs",
     redoc_url=None,
 )

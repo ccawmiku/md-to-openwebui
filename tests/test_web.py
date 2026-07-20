@@ -1,4 +1,5 @@
 import base64
+import json
 import socket
 
 from fastapi.testclient import TestClient
@@ -53,7 +54,8 @@ def test_converts_multiple_files() -> None:
     second_messages = list(data["output"][1]["chat"]["history"]["messages"].values())
     assert second_messages[0]["content"] == "Question"
     assert second_messages[1]["content"] == "Answer"
-    assert second_messages[1]["output"][0]["type"] == "reasoning"
+    assert "output" not in second_messages[1]
+    assert "Reasoning" not in json.dumps(data["output"])
 
 
 def test_rejects_non_markdown_file() -> None:

@@ -118,4 +118,4 @@ python -m venv .venv
 ---
 ```
 
-转换后，思考内容存入 Open WebUI 助手消息的 `output` reasoning 项；用户提示词和助手最终回答的 `content` 都不会混入思考文本。
+转换时会识别并彻底丢弃思考内容。导出的 JSON 只保留用户提示词和助手最终回答，不会生成 `output`、`reasoning` 等扩展字段，以兼容 Open WebUI 的聊天导入器。
