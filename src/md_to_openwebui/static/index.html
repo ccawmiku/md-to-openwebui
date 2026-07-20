@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="把 User / Assistant Markdown 对话转换为 Open WebUI 导入 JSON"
+    />
+    <title>Markdown → Open WebUI</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <div class="brand-mark" aria-hidden="true"><span>MD</span><i>→</i><span>JSON</span></div>
+        <p class="eyebrow">LOCAL CONVERSATION TOOL</p>
+        <h1>把 Markdown 对话<br />装进 Open WebUI</h1>
+        <p class="lede">
+          选择聊天导出的 Markdown 文件。标题、角色、段落与中文内容都会保留，
+          并转换成 Open WebUI 使用的标准消息树。
+        </p>
+        <ul class="trust-row" aria-label="隐私与兼容特性">
+          <li><span aria-hidden="true">●</span> 仅在内存处理</li>
+          <li><span aria-hidden="true">●</span> 支持批量转换</li>
+          <li><span aria-hidden="true">●</span> UTF-8 无损保留</li>
+        </ul>
+      </header>
+
+      <section class="workspace" aria-labelledby="converter-title">
+        <div class="section-heading">
+          <div>
+            <p class="step">01 / 选择文件</p>
+            <h2 id="converter-title">准备聊天记录</h2>
+          </div>
+          <span class="format-pill">.MD</span>
+        </div>
+
+        <form id="convert-form">
+          <label class="drop-zone" id="drop-zone" for="file-input">
+            <input id="file-input" name="files" type="file" accept=".md,text/markdown" multiple />
+            <span class="drop-icon" aria-hidden="true">＋</span>
+            <strong>拖入 Markdown 文件</strong>
+            <span>或点击浏览 · 最多 50 个文件</span>
+          </label>
+
+          <div id="file-panel" class="file-panel" hidden>
+            <div class="file-panel-head">
+              <span id="file-count">已选择 0 个文件</span>
+              <button class="text-button" id="clear-files" type="button">全部清除</button>
+            </div>
+            <ul id="file-list" class="file-list"></ul>
+          </div>
+
+          <div class="settings-row">
+            <label for="model-input">
+              <span>模型标识 <small>可选</small></span>
+              <input
+                id="model-input"
+                name="model"
+                type="text"
+                maxlength="200"
+                placeholder="例如 llama3.2；留空则不指定"
+                autocomplete="off"
+              />
+            </label>
+            <p>如填写，会写入助手消息和对话模型列表。</p>
+          </div>
+
+          <button class="primary-button" id="convert-button" type="submit" disabled>
+            <span>转换为 Open WebUI JSON</span>
+            <span aria-hidden="true">↗</span>
+          </button>
+        </form>
+
+        <div id="status" class="status" role="status" aria-live="polite" hidden></div>
+      </section>
+
+      <section id="result" class="result" aria-labelledby="result-title" hidden>
+        <div class="section-heading result-heading">
+          <div>
+            <p class="step">02 / 转换完成</p>
+            <h2 id="result-title">可以导入了</h2>
+          </div>
+          <button class="download-button" id="download-button" type="button">
+            下载 JSON <span aria-hidden="true">↓</span>
+          </button>
+        </div>
+
+        <div class="metrics">
+          <div><strong id="chat-count">0</strong><span>段对话</span></div>
+          <div><strong id="message-count">0</strong><span>条消息</span></div>
+          <div><strong id="output-size">0 KB</strong><span>输出大小</span></div>
+        </div>
+
+        <details class="preview">
+          <summary>查看 JSON 预览</summary>
+          <pre><code id="json-preview"></code></pre>
+        </details>
+      </section>
+
+      <footer>
+        <p>本地工具 · 不上传到第三方 · 不保存聊天内容</p>
+        <a href="/api/docs">API 文档</a>
+      </footer>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=75,<81"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "md-to-openwebui"
+version = "1.0.0"
+description = "Convert Markdown chat exports into Open WebUI import JSON."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115,<1.0",
+  "uvicorn>=0.34,<1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "build>=1.2,<2.0",
+  "httpx>=0.28,<1.0",
+  "mypy>=1.15,<2.0",
+  "pip-audit>=2.8,<3.0",
+  "pytest>=8.3,<9.0",
+  "pytest-cov>=6.0,<7.0",
+  "ruff>=0.11,<1.0",
+]
+
+[project.scripts]
+md-to-openwebui = "md_to_openwebui.web:main"
+
+[tool.setuptools.package-data]
+md_to_openwebui = ["py.typed", "static/*"]
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers --strict-config"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["md_to_openwebui"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 90
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["md_to_openwebui"]
