@@ -317,6 +317,39 @@ h2 {
   line-height: 1.55;
 }
 
+.thought-option {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin: -6px 0 28px;
+  padding: 16px;
+  border: 1px solid #d4d9d2;
+  border-radius: 10px;
+  background: #f7f8f4;
+  cursor: pointer;
+}
+
+.thought-option input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: var(--ink);
+}
+
+.thought-option span {
+  display: grid;
+  gap: 4px;
+}
+
+.thought-option strong {
+  font-size: 13px;
+}
+
+.thought-option small {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 .primary-button,
 .download-button {
   display: flex;

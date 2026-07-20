@@ -83,7 +83,8 @@ python -m venv .venv
       "data_base64": "IyDlr7nor53moIfpopgKLi4u"
     }
   ],
-  "model": null
+  "model": "llama3.2",
+  "include_thoughts": false
 }
 ```
 
@@ -118,4 +119,6 @@ python -m venv .venv
 ---
 ```
 
-转换时会识别并彻底丢弃思考内容。导出的 JSON 只保留用户提示词和助手最终回答，不会生成 `output`、`reasoning` 等扩展字段，以兼容 Open WebUI 的聊天导入器。
+模型名称为必填项，会写入对话模型列表和每条助手消息。
+
+转换页面的“保留思考过程”默认关闭，此时会彻底丢弃思考内容；开启后，思考内容会写入 Open WebUI 助手消息的 `output` reasoning 项。API 使用 `include_thoughts` 控制该行为。

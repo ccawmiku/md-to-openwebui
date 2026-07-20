@@ -13,6 +13,7 @@ const fileCount = document.querySelector("#file-count");
 const clearFiles = document.querySelector("#clear-files");
 const convertButton = document.querySelector("#convert-button");
 const modelInput = document.querySelector("#model-input");
+const includeThoughts = document.querySelector("#include-thoughts");
 const statusBox = document.querySelector("#status");
 const result = document.querySelector("#result");
 const downloadButton = document.querySelector("#download-button");
@@ -20,10 +21,15 @@ const jsonPreview = document.querySelector("#json-preview");
 const chatCount = document.querySelector("#chat-count");
 const messageCount = document.querySelector("#message-count");
 const thoughtCount = document.querySelector("#thought-count");
+const thoughtLabel = document.querySelector("#thought-label");
 const outputSize = document.querySelector("#output-size");
 
 let selectedFiles = [];
 let outputJson = null;
+
+function updateConvertButton() {
+  convertButton.disabled = selectedFiles.length === 0 || modelInput.value.trim() === "";
+}
 
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -73,7 +79,7 @@ function renderFiles() {
   const count = selectedFiles.length;
   filePanel.hidden = count === 0;
   fileCount.textContent = `已选择 ${count} 个文件`;
-  convertButton.disabled = count === 0;
+  updateConvertButton();
 }
 
 function addFiles(fileCollection) {
@@ -152,9 +158,24 @@ clearFiles.addEventListener("click", () => {
   renderFiles();
 });
 
+for (const control of [modelInput, includeThoughts]) {
+  control.addEventListener("input", () => {
+    outputJson = null;
+    result.hidden = true;
+    clearStatus();
+    updateConvertButton();
+  });
+}
+
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!selectedFiles.length) return;
+  const model = modelInput.value.trim();
+  if (!model) {
+    setStatus("请填写模型名称。 ");
+    modelInput.focus();
+    return;
+  }
 
   convertButton.disabled = true;
   setStatus("正在读取并转换文件…", "working");
@@ -168,7 +189,7 @@ form.addEventListener("submit", async (event) => {
     const response = await fetch("/api/convert", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ files, model: modelInput.value.trim() || null }),
+      body: JSON.stringify({ files, model, include_thoughts: includeThoughts.checked }),
     });
     const data = await response.json();
     if (!response.ok) {
@@ -181,6 +202,7 @@ form.addEventListener("submit", async (event) => {
     chatCount.textContent = data.chat_count;
     messageCount.textContent = data.message_count;
     thoughtCount.textContent = data.thought_count;
+    thoughtLabel.textContent = includeThoughts.checked ? "段思考已保留" : "段思考已丢弃";
     outputSize.textContent = formatBytes(bytes);
     jsonPreview.textContent = outputJson.length > 120000
       ? `${outputJson.slice(0, 120000)}\n\n… 预览已截断，下载文件包含完整内容。`
@@ -192,7 +214,7 @@ form.addEventListener("submit", async (event) => {
     result.hidden = true;
     setStatus(error instanceof Error ? error.message : "转换失败，请重试。 ");
   } finally {
-    convertButton.disabled = selectedFiles.length === 0;
+    updateConvertButton();
   }
 });
 

@@ -42,6 +42,7 @@ def test_converts_multiple_files() -> None:
                 },
             ],
             "model": "llama3.2",
+            "include_thoughts": False,
         },
     )
 
@@ -58,10 +59,50 @@ def test_converts_multiple_files() -> None:
     assert "Reasoning" not in json.dumps(data["output"])
 
 
+def test_preserves_thoughts_when_requested() -> None:
+    response = client.post(
+        "/api/convert",
+        json={
+            "files": [
+                {
+                    "name": "thoughts.md",
+                    "data_base64": encoded(
+                        "#### User:\nQuestion\n**Thoughts:**\nReasoning\n"
+                        "#### Assistant:\nAnswer\n"
+                    ),
+                }
+            ],
+            "model": "required-model",
+            "include_thoughts": True,
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    messages = list(data["output"][0]["chat"]["history"]["messages"].values())
+    assert data["output"][0]["chat"]["models"] == ["required-model"]
+    assert messages[1]["model"] == "required-model"
+    assert messages[1]["output"][0]["summary"][0]["text"] == "Reasoning"
+
+
+def test_requires_non_blank_model() -> None:
+    file = {"name": "chat.md", "data_base64": encoded("#### User:\nHello\n")}
+
+    missing = client.post("/api/convert", json={"files": [file]})
+    blank = client.post("/api/convert", json={"files": [file], "model": "   "})
+
+    assert missing.status_code == 422
+    assert blank.status_code == 422
+    assert blank.json()["detail"] == "模型名称不能为空"
+
+
 def test_rejects_non_markdown_file() -> None:
     response = client.post(
         "/api/convert",
-        json={"files": [{"name": "chat.txt", "data_base64": encoded("text")}]},
+        json={
+            "files": [{"name": "chat.txt", "data_base64": encoded("text")}],
+            "model": "test-model",
+        },
     )
 
     assert response.status_code == 422
@@ -70,15 +111,27 @@ def test_rejects_non_markdown_file() -> None:
 
 def test_rejects_invalid_base64_utf8_and_markdown() -> None:
     invalid_base64 = client.post(
-        "/api/convert", json={"files": [{"name": "chat.md", "data_base64": "%%%"}]}
+        "/api/convert",
+        json={
+            "files": [{"name": "chat.md", "data_base64": "%%%"}],
+            "model": "test-model",
+        },
     )
     invalid_utf8 = client.post(
         "/api/convert",
-        json={"files": [{"name": "chat.md", "data_base64": base64.b64encode(b"\xff").decode()}]},
+        json={
+            "files": [
+                {"name": "chat.md", "data_base64": base64.b64encode(b"\xff").decode()}
+            ],
+            "model": "test-model",
+        },
     )
     invalid_markdown = client.post(
         "/api/convert",
-        json={"files": [{"name": "chat.md", "data_base64": encoded("# title")}]},
+        json={
+            "files": [{"name": "chat.md", "data_base64": encoded("# title")}],
+            "model": "test-model",
+        },
     )
 
     assert invalid_base64.status_code == 422

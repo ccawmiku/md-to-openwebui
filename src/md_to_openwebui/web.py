@@ -38,7 +38,8 @@ class ConvertRequest(BaseModel):
     """Batch conversion request."""
 
     files: Annotated[list[InputFile], Field(min_length=1, max_length=MAX_FILES)]
-    model: Annotated[str | None, Field(max_length=200)] = None
+    model: Annotated[str, Field(min_length=1, max_length=200)]
+    include_thoughts: bool = False
 
 
 class FileSummary(BaseModel):
@@ -62,7 +63,7 @@ class ConvertResponse(BaseModel):
 
 app = FastAPI(
     title="Markdown to Open WebUI",
-    version="1.1.1",
+    version="1.2.0",
     docs_url="/api/docs",
     redoc_url=None,
 )
@@ -129,6 +130,10 @@ def _decode_source(source: InputFile) -> bytes:
 def convert(payload: ConvertRequest) -> ConvertResponse:
     """Convert one or more UTF-8 Markdown exports without persisting them."""
 
+    model = payload.model.strip()
+    if not model:
+        raise HTTPException(status_code=422, detail="模型名称不能为空")
+
     decoded = [(source, _decode_source(source)) for source in payload.files]
     if sum(len(raw) for _, raw in decoded) > MAX_TOTAL_BYTES:
         raise HTTPException(status_code=413, detail="文件总大小超过 50 MiB")
@@ -148,7 +153,13 @@ def convert(payload: ConvertRequest) -> ConvertResponse:
         except MarkdownParseError as exc:
             raise HTTPException(status_code=422, detail=f"{source.name}: {exc}") from exc
 
-        output.append(to_openwebui_chat(conversation, payload.model))
+        output.append(
+            to_openwebui_chat(
+                conversation,
+                model,
+                include_thoughts=payload.include_thoughts,
+            )
+        )
         summaries.append(
             FileSummary(
                 name=source.name,

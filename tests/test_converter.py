@@ -1,6 +1,8 @@
 import json
 from uuid import UUID
 
+import pytest
+
 from md_to_openwebui.converter import to_openwebui_chat
 from md_to_openwebui.parser import Conversation, Message
 
@@ -43,12 +45,27 @@ def test_builds_openwebui_standard_message_tree() -> None:
     assert history["currentId"] == third["id"]
 
 
-def test_omits_assistant_model_when_none_is_given() -> None:
+def test_rejects_blank_model() -> None:
     conversation = Conversation(title="No model", messages=(Message("assistant", "hello"),))
 
-    result = to_openwebui_chat(conversation, "   ")
+    with pytest.raises(ValueError, match="模型名称不能为空"):
+        to_openwebui_chat(conversation, "   ")
+
+
+def test_includes_thoughts_only_when_requested() -> None:
+    conversation = Conversation(
+        title="Thoughts",
+        messages=(Message("assistant", "answer", "private reasoning"),),
+    )
+
+    result = to_openwebui_chat(conversation, "model-id", include_thoughts=True)
     message = next(iter(result["chat"]["history"]["messages"].values()))
 
-    assert result["chat"]["models"] == []
-    assert "model" not in message
-    assert "output" not in message
+    assert message["model"] == "model-id"
+    assert message["output"][0]["type"] == "reasoning"
+    assert message["output"][0]["summary"] == [
+        {"type": "summary_text", "text": "private reasoning"}
+    ]
+    assert message["output"][1]["content"] == [
+        {"type": "output_text", "text": "answer"}
+    ]

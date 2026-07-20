@@ -56,18 +56,27 @@
 
           <div class="settings-row">
             <label for="model-input">
-              <span>模型标识 <small>可选</small></span>
+              <span>模型标识 <small>必填</small></span>
               <input
                 id="model-input"
                 name="model"
                 type="text"
                 maxlength="200"
-                placeholder="例如 llama3.2；留空则不指定"
+                placeholder="例如 llama3.2"
                 autocomplete="off"
+                required
               />
             </label>
-            <p>如填写，会写入助手消息和对话模型列表。</p>
+            <p>Open WebUI 导入要求模型名称；它会写入助手消息和对话模型列表。</p>
           </div>
+
+          <label class="thought-option" for="include-thoughts">
+            <input id="include-thoughts" name="include_thoughts" type="checkbox" />
+            <span>
+              <strong>保留思考过程</strong>
+              <small>默认关闭。开启后将 Thoughts 写入助手消息的 reasoning 数据。</small>
+            </span>
+          </label>
 
           <button class="primary-button" id="convert-button" type="submit" disabled>
             <span>转换为 Open WebUI JSON</span>
@@ -92,7 +101,7 @@
         <div class="metrics">
           <div><strong id="chat-count">0</strong><span>段对话</span></div>
           <div><strong id="message-count">0</strong><span>条消息</span></div>
-          <div><strong id="thought-count">0</strong><span>段思考已丢弃</span></div>
+          <div><strong id="thought-count">0</strong><span id="thought-label">段思考已丢弃</span></div>
           <div><strong id="output-size">0 KB</strong><span>输出大小</span></div>
         </div>
 

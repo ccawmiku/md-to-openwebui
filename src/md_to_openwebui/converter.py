@@ -13,13 +13,16 @@ IdFactory = Callable[[], UUID]
 
 def to_openwebui_chat(
     conversation: Conversation,
-    model: str | None = None,
+    model: str,
     *,
+    include_thoughts: bool = False,
     id_factory: IdFactory = uuid4,
 ) -> dict[str, Any]:
     """Build one standard Open WebUI chat import object."""
 
-    clean_model = model.strip() if model and model.strip() else None
+    clean_model = model.strip()
+    if not clean_model:
+        raise ValueError("模型名称不能为空")
     ids = [str(id_factory()) for _ in conversation.messages]
     messages: dict[str, dict[str, Any]] = {}
 
@@ -34,13 +37,28 @@ def to_openwebui_chat(
         }
         if parsed.role == "assistant":
             message["done"] = True
-            if clean_model:
-                message["model"] = clean_model
+            message["model"] = clean_model
+            if include_thoughts and parsed.thoughts:
+                message["output"] = [
+                    {
+                        "type": "reasoning",
+                        "id": f"{message_id}-reasoning",
+                        "summary": [{"type": "summary_text", "text": parsed.thoughts}],
+                        "status": "completed",
+                    },
+                    {
+                        "type": "message",
+                        "id": f"{message_id}-answer",
+                        "role": "assistant",
+                        "content": [{"type": "output_text", "text": parsed.content}],
+                        "status": "completed",
+                    },
+                ]
         messages[message_id] = message
 
     chat: dict[str, Any] = {
         "title": conversation.title,
-        "models": [clean_model] if clean_model else [],
+        "models": [clean_model],
         "history": {"currentId": ids[-1], "messages": messages},
     }
     return {
