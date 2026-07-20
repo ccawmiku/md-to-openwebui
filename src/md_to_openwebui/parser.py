@@ -17,6 +17,7 @@ class Message:
 
     role: str
     content: str
+    thoughts: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +30,8 @@ class Conversation:
 
 ROLE_HEADER = re.compile(r"(?im)^####[ \t]+(user|assistant):[ \t]*$")
 TITLE = re.compile(r"(?m)^#[ \t]+(.+?)[ \t]*$")
+THOUGHTS_MARKER = re.compile(r"(?im)^[ \t]*\*\*Thoughts:\*\*[ \t]*$")
+RESPONSE_MARKER = re.compile(r"(?im)^[ \t]*\*\*(?:Response|Answer):\*\*[ \t]*$")
 
 
 def _strip_boundary_rule(block: str) -> str:
@@ -50,6 +53,25 @@ def _strip_boundary_rule(block: str) -> str:
     return "\n".join(lines)
 
 
+def _split_thoughts(block: str, role: str) -> tuple[str, str | None]:
+    """Split an exported Thoughts section from the visible message content."""
+
+    marker = THOUGHTS_MARKER.search(block)
+    if marker is None:
+        return _strip_boundary_rule(block), None
+
+    content_before = _strip_boundary_rule(block[: marker.start()])
+    content_after = block[marker.end() :]
+    response_marker = RESPONSE_MARKER.search(content_after)
+    if role == "assistant" and response_marker is not None:
+        thoughts = _strip_boundary_rule(content_after[: response_marker.start()])
+        response = _strip_boundary_rule(content_after[response_marker.end() :])
+        return response, thoughts or None
+
+    thoughts = _strip_boundary_rule(content_after)
+    return content_before, thoughts or None
+
+
 def parse_markdown(text: str, filename: str) -> Conversation:
     """Parse a Markdown export into a conversation.
 
@@ -67,12 +89,24 @@ def parse_markdown(text: str, filename: str) -> Conversation:
     title = title_match.group(1).strip() if title_match else fallback_title
 
     messages: list[Message] = []
+    pending_thoughts: list[str] = []
     for index, match in enumerate(matches):
         end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
-        content = _strip_boundary_rule(text[match.end() : end])
+        role = match.group(1).lower()
+        content, thoughts = _split_thoughts(text[match.end() : end], role)
+        if role == "user" and thoughts:
+            pending_thoughts.append(thoughts)
+            thoughts = None
+        elif role == "assistant":
+            all_thoughts = [*pending_thoughts, *([thoughts] if thoughts else [])]
+            thoughts = "\n\n".join(all_thoughts) or None
+            pending_thoughts.clear()
         if not content:
             display_role = match.group(1).title()
             raise MarkdownParseError(f"第 {index + 1} 条 {display_role} 消息内容为空")
-        messages.append(Message(role=match.group(1).lower(), content=content))
+        messages.append(Message(role=role, content=content, thoughts=thoughts))
+
+    if pending_thoughts:
+        raise MarkdownParseError("Thoughts 部分后没有对应的 Assistant 消息")
 
     return Conversation(title=title, messages=tuple(messages))

@@ -34,11 +34,49 @@ def test_uses_filename_when_title_is_missing_and_headers_are_case_insensitive() 
     assert conversation.messages[0].content == "你好"
 
 
+def test_moves_thoughts_out_of_user_content_and_onto_next_assistant() -> None:
+    source = """# Thinking chat
+#### User:
+Actual prompt
+---
+**Thoughts:**
+Internal reasoning with **Markdown**.
+---
+#### Assistant:
+Final answer
+---
+"""
+
+    conversation = parse_markdown(source, "thoughts.md")
+
+    assert conversation.messages[0].content == "Actual prompt"
+    assert conversation.messages[0].thoughts is None
+    assert conversation.messages[1].content == "Final answer"
+    assert conversation.messages[1].thoughts == "Internal reasoning with **Markdown**."
+
+
+def test_parses_thoughts_and_response_inside_assistant_block() -> None:
+    source = """#### User:
+Prompt
+#### Assistant:
+**Thoughts:**
+Reasoning
+**Response:**
+Answer
+"""
+
+    conversation = parse_markdown(source, "inline.md")
+
+    assert conversation.messages[1].thoughts == "Reasoning"
+    assert conversation.messages[1].content == "Answer"
+
+
 @pytest.mark.parametrize(
     ("source", "message"),
     [
         ("# Empty", "未找到"),
         ("#### User:\n---\n", "内容为空"),
+        ("#### User:\nPrompt\n**Thoughts:**\nOrphaned\n", "Thoughts"),
     ],
 )
 def test_rejects_invalid_exports(source: str, message: str) -> None:

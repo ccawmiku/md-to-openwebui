@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import base64
 import binascii
+import os
+import socket
+import threading
+import webbrowser
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -43,6 +47,7 @@ class FileSummary(BaseModel):
     name: str
     title: str
     messages: int
+    thoughts: int
 
 
 class ConvertResponse(BaseModel):
@@ -52,11 +57,12 @@ class ConvertResponse(BaseModel):
     files: list[FileSummary]
     chat_count: int
     message_count: int
+    thought_count: int
 
 
 app = FastAPI(
     title="Markdown to Open WebUI",
-    version="1.0.0",
+    version="1.1.0",
     docs_url="/api/docs",
     redoc_url=None,
 )
@@ -148,6 +154,7 @@ def convert(payload: ConvertRequest) -> ConvertResponse:
                 name=source.name,
                 title=conversation.title,
                 messages=len(conversation.messages),
+                thoughts=sum(message.thoughts is not None for message in conversation.messages),
             )
         )
 
@@ -156,15 +163,35 @@ def convert(payload: ConvertRequest) -> ConvertResponse:
         files=summaries,
         chat_count=len(output),
         message_count=sum(item.messages for item in summaries),
+        thought_count=sum(item.thoughts for item in summaries),
     )
 
 
+def _choose_port(preferred: int = 8000) -> int:
+    """Use the preferred port when available, otherwise choose a free local port."""
+
+    for port in (preferred, 0):
+        with socket.socket() as candidate:
+            try:
+                candidate.bind(("127.0.0.1", port))
+            except OSError:
+                continue
+            return int(candidate.getsockname()[1])
+    raise RuntimeError("无法找到可用的本地端口")
+
+
 def main() -> None:
-    """Run the local web server."""
+    """Run the local web server and open it in the default browser."""
 
     import uvicorn
 
-    uvicorn.run("md_to_openwebui.web:app", host="127.0.0.1", port=8000)
+    port = _choose_port()
+    url = f"http://127.0.0.1:{port}"
+    if os.environ.get("MD_TO_OPENWEBUI_NO_BROWSER") != "1":
+        opener = threading.Timer(0.8, webbrowser.open, args=(url,))
+        opener.daemon = True
+        opener.start()
+    uvicorn.run(app, host="127.0.0.1", port=port)
 
 
 if __name__ == "__main__":

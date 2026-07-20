@@ -4,6 +4,8 @@
 #
 #    pip-compile --extra=dev --no-emit-index-url --output-file=requirements-dev.lock --strip-extras pyproject.toml
 #
+altgraph==0.17.5
+    # via pyinstaller
 annotated-doc==0.0.4
     # via fastapi
 annotated-types==0.7.0
@@ -80,9 +82,13 @@ packaging==26.2
     #   build
     #   pip-audit
     #   pip-requirements-parser
+    #   pyinstaller
+    #   pyinstaller-hooks-contrib
     #   pytest
 pathspec==1.1.1
     # via mypy
+pefile==2024.8.26
+    # via pyinstaller
 pip-api==0.0.34
     # via pip-audit
 pip-audit==2.10.1
@@ -105,16 +111,22 @@ pygments==2.20.0
     # via
     #   pytest
     #   rich
+pyinstaller==6.21.0
+    # via md-to-openwebui (pyproject.toml)
+pyinstaller-hooks-contrib==2026.6
+    # via pyinstaller
 pyparsing==3.3.2
     # via pip-requirements-parser
 pyproject-hooks==1.2.0
     # via build
-pytest==8.4.2
+pytest==9.1.1
     # via
     #   md-to-openwebui (pyproject.toml)
     #   pytest-cov
 pytest-cov==6.3.0
     # via md-to-openwebui (pyproject.toml)
+pywin32-ctypes==0.2.3
+    # via pyinstaller
 requests==2.34.2
     # via
     #   cachecontrol
@@ -152,3 +164,4 @@ uvicorn==0.51.0
 
 # The following packages are considered to be unsafe in a requirements file:
 # pip
+# setuptools

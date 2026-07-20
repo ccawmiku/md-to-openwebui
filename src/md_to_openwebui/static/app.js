@@ -19,6 +19,7 @@ const downloadButton = document.querySelector("#download-button");
 const jsonPreview = document.querySelector("#json-preview");
 const chatCount = document.querySelector("#chat-count");
 const messageCount = document.querySelector("#message-count");
+const thoughtCount = document.querySelector("#thought-count");
 const outputSize = document.querySelector("#output-size");
 
 let selectedFiles = [];
@@ -179,6 +180,7 @@ form.addEventListener("submit", async (event) => {
     const bytes = new Blob([outputJson]).size;
     chatCount.textContent = data.chat_count;
     messageCount.textContent = data.message_count;
+    thoughtCount.textContent = data.thought_count;
     outputSize.textContent = formatBytes(bytes);
     jsonPreview.textContent = outputJson.length > 120000
       ? `${outputJson.slice(0, 120000)}\n\n… 预览已截断，下载文件包含完整内容。`

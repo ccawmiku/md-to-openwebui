@@ -88,3 +88,34 @@ python -m venv .venv
 ```
 
 响应中的 `output` 数组就是 Open WebUI 导入文件的内容。
+
+## Windows EXE
+
+下载 `md-to-openwebui.exe` 后直接双击。程序会启动仅监听本机的服务，并自动打开默认浏览器；关闭控制台窗口即可停止服务。EXE 不需要预装 Python。
+
+本地重新构建：
+
+```powershell
+.venv\Scripts\python -m pip install -r requirements-dev.lock
+.\scripts\build_exe.ps1 -Python .venv\Scripts\python.exe
+```
+
+每个版本标签也会通过 GitHub Actions 构建 Windows EXE，并保存为工作流构件。
+
+## Thoughts 思考段
+
+导出文件中位于用户提示词之后、下一条助手回答之前的 `**Thoughts:**` 会从用户内容中拆出：
+
+```markdown
+#### User:
+实际提示词
+---
+**Thoughts:**
+模型的思考内容
+---
+#### Assistant:
+最终回答
+---
+```
+
+转换后，思考内容存入 Open WebUI 助手消息的 `output` reasoning 项；用户提示词和助手最终回答的 `content` 都不会混入思考文本。

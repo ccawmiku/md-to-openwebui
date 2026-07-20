@@ -34,6 +34,22 @@ def to_openwebui_chat(
         }
         if parsed.role == "assistant":
             message["done"] = True
+            if parsed.thoughts:
+                message["output"] = [
+                    {
+                        "type": "reasoning",
+                        "id": f"{message_id}-reasoning",
+                        "summary": [{"type": "summary_text", "text": parsed.thoughts}],
+                        "status": "completed",
+                    },
+                    {
+                        "type": "message",
+                        "id": f"{message_id}-answer",
+                        "role": "assistant",
+                        "content": [{"type": "output_text", "text": parsed.content}],
+                        "status": "completed",
+                    },
+                ]
             if clean_model:
                 message["model"] = clean_model
         messages[message_id] = message

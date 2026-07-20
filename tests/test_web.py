@@ -1,8 +1,10 @@
 import base64
+import socket
 
 from fastapi.testclient import TestClient
 
-from md_to_openwebui.web import app
+from md_to_openwebui import web as web_module
+from md_to_openwebui.web import _choose_port, app, main
 
 client = TestClient(app)
 
@@ -33,7 +35,8 @@ def test_converts_multiple_files() -> None:
                 {
                     "name": "two.md",
                     "data_base64": encoded(
-                        "# Second\n#### User:\nQuestion\n---\n#### Assistant:\nAnswer\n---\n"
+                        "# Second\n#### User:\nQuestion\n---\n**Thoughts:**\nReasoning\n---\n"
+                        "#### Assistant:\nAnswer\n---\n"
                     ),
                 },
             ],
@@ -45,7 +48,12 @@ def test_converts_multiple_files() -> None:
     data = response.json()
     assert data["chat_count"] == 2
     assert data["message_count"] == 3
+    assert data["thought_count"] == 1
     assert [item["chat"]["title"] for item in data["output"]] == ["第一段", "Second"]
+    second_messages = list(data["output"][1]["chat"]["history"]["messages"].values())
+    assert second_messages[0]["content"] == "Question"
+    assert second_messages[1]["content"] == "Answer"
+    assert second_messages[1]["output"][0]["type"] == "reasoning"
 
 
 def test_rejects_non_markdown_file() -> None:
@@ -90,3 +98,53 @@ def test_rejects_invalid_or_oversized_content_length() -> None:
 
     assert invalid.status_code == 413
     assert oversized.status_code == 413
+
+
+def test_choose_port_uses_free_port_and_falls_back_when_preferred_is_busy() -> None:
+    assert _choose_port(0) > 0
+
+    with socket.socket() as occupied:
+        occupied.bind(("127.0.0.1", 0))
+        occupied.listen()
+        occupied_port = int(occupied.getsockname()[1])
+        assert _choose_port(occupied_port) != occupied_port
+
+
+def test_main_can_start_without_opening_browser(monkeypatch) -> None:
+    calls = {}
+
+    def fake_run(app_arg, *, host: str, port: int) -> None:
+        calls.update(app=app_arg, host=host, port=port)
+
+    monkeypatch.setenv("MD_TO_OPENWEBUI_NO_BROWSER", "1")
+    monkeypatch.setattr(web_module, "_choose_port", lambda: 8123)
+    monkeypatch.setattr("uvicorn.run", fake_run)
+
+    main()
+
+    assert calls == {"app": app, "host": "127.0.0.1", "port": 8123}
+
+
+def test_main_opens_browser_for_interactive_start(monkeypatch) -> None:
+    calls = {}
+
+    class FakeTimer:
+        daemon = False
+
+        def __init__(self, interval, function, args) -> None:
+            calls.update(interval=interval, function=function, args=args)
+
+        def start(self) -> None:
+            calls["started"] = True
+
+    monkeypatch.delenv("MD_TO_OPENWEBUI_NO_BROWSER", raising=False)
+    monkeypatch.setattr(web_module, "_choose_port", lambda: 8124)
+    monkeypatch.setattr(web_module.threading, "Timer", FakeTimer)
+    monkeypatch.setattr("uvicorn.run", lambda *args, **kwargs: None)
+
+    main()
+
+    assert calls["interval"] == 0.8
+    assert calls["function"] is web_module.webbrowser.open
+    assert calls["args"] == ("http://127.0.0.1:8124",)
+    assert calls["started"] is True

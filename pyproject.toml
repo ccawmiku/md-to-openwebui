@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "md-to-openwebui"
-version = "1.0.0"
+version = "1.1.0"
 description = "Convert Markdown chat exports into Open WebUI import JSON."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -19,7 +19,8 @@ dev = [
   "httpx>=0.28,<1.0",
   "mypy>=1.15,<2.0",
   "pip-audit>=2.8,<3.0",
-  "pytest>=8.3,<9.0",
+  "pyinstaller>=6.16,<7.0",
+  "pytest>=9.0.3,<10.0",
   "pytest-cov>=6.0,<7.0",
   "ruff>=0.11,<1.0",
 ]
@@ -37,6 +38,7 @@ testpaths = ["tests"]
 [tool.coverage.run]
 branch = true
 source = ["md_to_openwebui"]
+omit = ["*/__main__.py"]
 
 [tool.coverage.report]
 show_missing = true
