@@ -4,6 +4,185 @@ const MAX_FILES = 50;
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
 
+// ---- Parser (ported from src/md_to_openwebui/parser.py) ----
+
+const ROLE_HEADER = /^####[ \t]+(user|assistant):[ \t]*$/im;
+const TITLE = /^#[ \t]+(.+?)[ \t]*$/m;
+const THOUGHTS_MARKER = /^[ \t]*\*\*Thoughts:\*\*[ \t]*$/im;
+const RESPONSE_MARKER = /^[ \t]*\*\*(?:Response|Answer):\*\*[ \t]*$/im;
+
+class MarkdownParseError extends Error {}
+
+function splitLines(text) {
+  return text.split(/\r\n|\r|\n/);
+}
+
+function stripBoundaryRule(block) {
+  const lines = splitLines(block);
+  while (lines.length && !lines[0].trim()) lines.shift();
+  while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+  if (lines.length && lines[0].trim() === "---") lines.shift();
+  if (lines.length && lines[lines.length - 1].trim() === "---") lines.pop();
+  while (lines.length && !lines[0].trim()) lines.shift();
+  while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+  return lines.join("\n");
+}
+
+function splitThoughts(block, role) {
+  const marker = THOUGHTS_MARKER.exec(block);
+  if (!marker) return [stripBoundaryRule(block), null];
+
+  const contentBefore = stripBoundaryRule(block.slice(0, marker.index));
+  const contentAfter = block.slice(marker.index + marker[0].length);
+  const responseMarker = RESPONSE_MARKER.exec(contentAfter);
+  if (role === "assistant" && responseMarker) {
+    const thoughts = stripBoundaryRule(contentAfter.slice(0, responseMarker.index));
+    const response = stripBoundaryRule(
+      contentAfter.slice(responseMarker.index + responseMarker[0].length),
+    );
+    return [response, thoughts || null];
+  }
+
+  const thoughts = stripBoundaryRule(contentAfter);
+  return [contentBefore, thoughts || null];
+}
+
+function filenameStem(filename) {
+  const dot = filename.lastIndexOf(".");
+  return dot > 0 ? filename.slice(0, dot) : filename;
+}
+
+function parseMarkdown(text, filename) {
+  const matches = [];
+  const roleRe = /^####[ \t]+(user|assistant):[ \t]*$/gim;
+  let match;
+  while ((match = roleRe.exec(text)) !== null) matches.push(match);
+  if (!matches.length) {
+    throw new MarkdownParseError("未找到 `#### User:` 或 `#### Assistant:` 消息标题");
+  }
+
+  const preamble = text.slice(0, matches[0].index);
+  const titleMatch = TITLE.exec(preamble);
+  const fallbackTitle = filenameStem(filename).trim() || "Imported Chat";
+  const title = titleMatch ? titleMatch[1].trim() : fallbackTitle;
+
+  const messages = [];
+  const pendingThoughts = [];
+  for (let index = 0; index < matches.length; index++) {
+    const current = matches[index];
+    const end = index + 1 < matches.length ? matches[index + 1].index : text.length;
+    const role = current[1].toLowerCase();
+    const [content, rawThoughts] = splitThoughts(
+      text.slice(current.index + current[0].length, end),
+      role,
+    );
+    let thoughts = rawThoughts;
+    if (role === "user" && thoughts) {
+      pendingThoughts.push(thoughts);
+      thoughts = null;
+    } else if (role === "assistant") {
+      const allThoughts = [...pendingThoughts, ...(thoughts ? [thoughts] : [])];
+      thoughts = allThoughts.join("\n\n") || null;
+      pendingThoughts.length = 0;
+    }
+    if (!content) {
+      const displayRole = current[1].charAt(0).toUpperCase() + current[1].slice(1).toLowerCase();
+      throw new MarkdownParseError(`第 ${index + 1} 条 ${displayRole} 消息内容为空`);
+    }
+    messages.push({ role, content, thoughts });
+  }
+  if (pendingThoughts.length) {
+    throw new MarkdownParseError("Thoughts 部分后没有对应的 Assistant 消息");
+  }
+  return { title, messages };
+}
+
+// ---- Converter (ported from src/md_to_openwebui/converter.py) ----
+
+function uuid() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
+    const random = (Math.random() * 16) | 0;
+    const value = char === "x" ? random : (random & 0x3) | 0x8;
+    return value.toString(16);
+  });
+}
+
+function toOpenWebUIChat(conversation, model, includeThoughts) {
+  const cleanModel = model.trim();
+  if (!cleanModel) throw new Error("模型名称不能为空");
+  const ids = conversation.messages.map(() => uuid());
+  const messages = {};
+  for (let index = 0; index < conversation.messages.length; index++) {
+    const parsed = conversation.messages[index];
+    const messageId = ids[index];
+    const message = {
+      id: messageId,
+      parentId: index ? ids[index - 1] : null,
+      childrenIds: index + 1 < ids.length ? [ids[index + 1]] : [],
+      role: parsed.role,
+      content: parsed.content,
+    };
+    if (parsed.role === "assistant") {
+      message.done = true;
+      message.model = cleanModel;
+      if (includeThoughts && parsed.thoughts) {
+        message.output = [
+          {
+            type: "reasoning",
+            id: `${messageId}-reasoning`,
+            summary: [{ type: "summary_text", text: parsed.thoughts }],
+            status: "completed",
+          },
+          {
+            type: "message",
+            id: `${messageId}-answer`,
+            role: "assistant",
+            content: [{ type: "output_text", text: parsed.content }],
+            status: "completed",
+          },
+        ];
+      }
+    }
+    messages[messageId] = message;
+  }
+  const chat = {
+    title: conversation.title,
+    models: [cleanModel],
+    history: { currentId: ids[ids.length - 1], messages },
+  };
+  return { chat, meta: {}, pinned: false, folder_id: null };
+}
+
+function convertFiles(files, model, includeThoughts) {
+  const output = [];
+  const summaries = [];
+  for (const file of files) {
+    let conversation;
+    try {
+      conversation = parseMarkdown(file.text, file.name);
+    } catch (error) {
+      throw new Error(`${file.name}: ${error.message}`);
+    }
+    output.push(toOpenWebUIChat(conversation, model, includeThoughts));
+    summaries.push({
+      name: file.name,
+      title: conversation.title,
+      messages: conversation.messages.length,
+      thoughts: conversation.messages.filter((message) => message.thoughts != null).length,
+    });
+  }
+  return {
+    output,
+    files: summaries,
+    chat_count: output.length,
+    message_count: summaries.reduce((sum, item) => sum + item.messages, 0),
+    thought_count: summaries.reduce((sum, item) => sum + item.thoughts, 0),
+  };
+}
+
+// ---- UI ----
+
 const form = document.querySelector("#convert-form");
 const fileInput = document.querySelector("#file-input");
 const dropZone = document.querySelector("#drop-zone");
@@ -119,16 +298,6 @@ function addFiles(fileCollection) {
   renderFiles();
 }
 
-async function fileToBase64(file) {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const chunkSize = 0x8000;
-  let binary = "";
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
-  }
-  return btoa(binary);
-}
-
 fileInput.addEventListener("change", () => {
   addFiles(fileInput.files);
   fileInput.value = "";
@@ -181,21 +350,18 @@ form.addEventListener("submit", async (event) => {
   setStatus("正在读取并转换文件…", "working");
   try {
     const files = await Promise.all(
-      selectedFiles.map(async (file) => ({
-        name: file.name,
-        data_base64: await fileToBase64(file),
-      })),
+      selectedFiles.map(async (file) => {
+        const buffer = await file.arrayBuffer();
+        try {
+          const text = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+          return { name: file.name, text };
+        } catch {
+          throw new Error(`${file.name}: 不是有效的 UTF-8 文件`);
+        }
+      }),
     );
-    const response = await fetch("/api/convert", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ files, model, include_thoughts: includeThoughts.checked }),
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      const detail = typeof data.detail === "string" ? data.detail : "转换失败，请检查文件格式。";
-      throw new Error(detail);
-    }
+
+    const data = convertFiles(files, model, includeThoughts.checked);
 
     outputJson = JSON.stringify(data.output, null, 2);
     const bytes = new Blob([outputJson]).size;
